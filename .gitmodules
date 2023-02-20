@@ -1,0 +1,3 @@
+[submodule "external/btk"]
+	path = external/btk
+	url = git@github.com:BusyStudent/Btk-ng.git

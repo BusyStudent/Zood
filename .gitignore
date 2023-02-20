@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# XMake
+.xmake
+/build
+
+# Vscode
+
+/.vscode/compile_commands.json
