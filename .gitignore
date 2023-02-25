@@ -38,3 +38,4 @@
 # Vscode
 
 /.vscode/compile_commands.json
+/.vscode/settings.json

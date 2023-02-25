@@ -1,2 +1,2 @@
 # Zood
-Zood is a player for Bilibili
+Zood 是一个糊的一坨稀饭的B站播放器

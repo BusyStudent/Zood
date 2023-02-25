@@ -1,0 +1,43 @@
+### Main
+
+GET https://www.bilibili.com/
+
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
+Referer: https://bilibili.com
+
+### Search
+
+GET https://api.bilibili.com/x/web-interface/search/all/v2?keyword=我的世界/
+
+### Search kind
+GET https://api.bilibili.com/x/web-interface/search/type?search_type=media_bangumi&keyword={{keyword}}/
+
+@keyword=Fate
+
+### 查询番剧信息通过epid
+
+### 视频获得源
+GET https://api.bilibili.com/x/player/playurl?qn=64&cid={{cid}}&avid={{avid}}
+
+@cid=2433510
+@avid=1577372
+
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
+Referer: https://bilibili.com
+
+### EP
+GET https://api.bilibili.com/pgc/view/web/season?ep_id={{epid}}
+
+@epid=67704
+
+
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
+Referer: https://bilibili.com
+
+### Season
+GET https://api.bilibili.com/pgc/view/web/season?season_id={{season_id}}
+
+@season_id=1586
+
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
+Referer: https://bilibili.com
