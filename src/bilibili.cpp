@@ -1,7 +1,10 @@
 #include "bilibili.hpp"
 #include <cpr/cpr.h>
 #include <iostream>
+#include <charconv>
 #include <nlohmann/json.hpp>
+#include <libxml/xmlreader.h>
+#include <libxml/xpath.h>
 
 cpr::Header DefaultHeader() {
     cpr::Header header;
@@ -136,4 +139,70 @@ Result<u8string> Bilibili::fetch_video_url(const u8string &bvid, int cid) {
     catch (...) {
         return std::nullopt;
     }
+}
+Result<Vec<Danmaku>> Bilibili::fetch_danmaku(int cid) {
+    auto url = u8string::format("https://api.bilibili.com/x/v1/dm/list.so?oid=%d", cid);
+
+    // I didnot known why cpr didnot support deflate
+    auto response = cpr::Get(cpr::Url(url), DefaultHeader(), cookie);
+
+    if (response.status_code!= 200) {
+        std::cout << "Failed to fetch danmaku" << std::endl;
+        return std::nullopt;
+    }
+
+    // Parse xml
+    auto doc = xmlParseDoc(BAD_CAST response.text.c_str());
+
+    if (!doc) {
+        return std::nullopt;
+    }
+    xmlNodePtr cur = xmlDocGetRootElement(doc);
+
+    // For each children
+    Vec<Danmaku> danmakus;
+
+    for (cur = cur->children; cur; cur = cur->next) {
+        if (xmlStrcmp(cur->name, BAD_CAST "d")) {
+            continue;
+        }
+
+        // Get attr
+        auto p = xmlGetProp(cur, BAD_CAST "p");
+        auto text = xmlNodeGetContent(cur);
+        auto list = u8string_view(reinterpret_cast<const char*>(p)).split_ref(",");
+
+        Danmaku d;
+        auto res = std::from_chars(list[0].data(), list[0].data() + list[0].size(), d.position);
+        res = std::from_chars(list[1].data(), list[1].data() + list[1].size(), (int &)d.type);
+        res = std::from_chars(list[2].data(), list[2].data() + list[2].size(), (int&)d.size);
+
+        int color_num;
+        res = std::from_chars(list[3].data(), list[3].data() + list[3].size(), color_num);
+        int r = 
+            (color_num & 0xFF0000) >> 16;
+        int g = 
+            (color_num & 0xFF00) >> 8;
+        int b = 
+            (color_num & 0xFF);
+        
+        d.color = Color(r, g, b);
+
+        res = std::from_chars(list[5].data(), list[5].data() + list[5].size(), (int &)d.pool);
+
+        res = std::from_chars(list[8].data(), list[8].data() + list[8].size(), (int &)d.level);
+
+        d.text = reinterpret_cast<const char*>(text);
+
+        danmakus.emplace_back(std::move(d));
+    }
+
+    // Sort danmaku by position
+    std::sort(danmakus.begin(), danmakus.end(), [](const Danmaku &a,const Danmaku &b){
+        return a.position < b.position;
+    });
+
+    xmlFreeDoc(doc);
+
+    return danmakus;
 }

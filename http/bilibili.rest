@@ -41,3 +41,12 @@ GET https://api.bilibili.com/pgc/view/web/season?season_id={{season_id}}
 
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
 Referer: https://bilibili.com
+
+### Danmaku
+GET https://api.bilibili.com/x/v1/dm/list.so?oid={{cid}}
+
+@cid=2433510
+
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
+Referer: https://bilibili.com
+Accept-Encoding: gzip
