@@ -1,0 +1,45 @@
+### 拿到 播放列表
+GET https://www.yhdmp.net/_getplay?aid={{aid}}&playindex={{playindex}}&epindex={{epindex}}&r={{random}}
+
+@aid=22201
+@playindex=1
+@epindex=8
+@random=0.3177517662731253
+
+accept: */*
+accept-encoding: gzip, deflate, br
+accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6
+cookie: qike123=%u540E%u5BAB%u4E4B%u4E4C%20%u7B2C1%u96C6^https%3A//www.yhdmp.net/vp/22201-1-0.html_$_%u540E%u5BAB%u4E4B%u4E4C%20%u7B2C9%u96C6^https%3A//www.yhdmp.net/vp/22201-1-8.html_$_%u963F%u9C81%u65AF%u7684%u5DE8%u517D%20%u7B2C1%u96C6^https%3A//www.yhdmp.net/vp/23104-3-0.html_$_|; t1=1677997789922; k1=101276988; k2=10059876007666; t2=1677997795036
+referer: https://www.yhdmp.net/vp/23104-3-0.html
+sec-ch-ua: "Chromium";v="110", "Not A(Brand";v="24", "Microsoft Edge";v="110"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Windows"
+sec-fetch-dest: empty
+sec-fetch-mode: cors
+sec-fetch-site: same-origin
+user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.63
+x-forwarded-for: 4.2.2.2
+x-requested-with: XMLHttpRequest
+
+### YH
+GET https://www.yhdmp.net/
+
+qike123=%u540E%u5BAB%u4E4B%u4E4C%20%u7B2C1%u96C6^https%3A//www.yhdmp.net/vp/22201-1-0.html_$_%u540E%u5BAB%u4E4B%u4E4C%20%u7B2C9%u96C6^https%3A//www.yhdmp.net/vp/22201-1-8.html_$_%u963F%u9C81%u65AF%u7684%u5DE8%u517D%20%u7B2C1%u96C6^https%3A//www.yhdmp.net/vp/23104-3-0.html_$_|; t1=1677997789922; k1=101276988; k2=10059876007666; t2=1677997795036
+
+### Search
+
+GET https://www.yhdmp.net/s_all??ex=1&kw=种族
+
+accept: */*
+accept-encoding: gzip, deflate, br
+accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6
+referer: https://www.yhdmp.net/vp/23104-3-0.html
+sec-ch-ua: "Chromium";v="110", "Not A(Brand";v="24", "Microsoft Edge";v="110"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Windows"
+sec-fetch-dest: empty
+sec-fetch-mode: cors
+sec-fetch-site: same-origin
+user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.63
+x-forwarded-for: 4.2.2.2
+x-requested-with: XMLHttpRequest

@@ -187,6 +187,7 @@ Result<Vec<Danmaku>> Bilibili::fetch_danmaku(int cid) {
             (color_num & 0xFF);
         
         d.color = Color(r, g, b);
+        d.shadow = Color::Gray;
 
         res = std::from_chars(list[5].data(), list[5].data() + list[5].size(), (int &)d.pool);
 

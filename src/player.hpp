@@ -9,47 +9,23 @@
 using Btk::TextLayout;
 using Btk::FRect;
 
-template <typename T>
-using List = std::list<T>;
 
-// 视频选择播放窗口
-class DanmakuNode : public FRect {
-    public:
-        const Danmaku *d;
-        TextLayout text;
-};
+class VideoPlayer;
 
-// 展示弹幕的一个View
-class DanmakuView : public Btk::Widget {
-    public:
-        DanmakuView(Widget *parent, std::list<DanmakuNode> *n) : Widget(parent), nodes(n) { 
-            auto pal = palette();
-            // 背景透明
-            pal.set_color(Btk::Palette::Window, Btk::Color::Transparent);
-
-            set_palette(pal);
-        }
-    private:
-        bool paint_event(Btk::PaintEvent &) override;
-
-        std::list<DanmakuNode> *nodes;
-};
 
 class VideoPlayer : public Btk::Widget {
     public:
-        VideoPlayer(Bilibili &client, int season_id);
+        VideoPlayer(Bilibili &client, const Vec<Eps> &ep);
         ~VideoPlayer();
 
     protected:
         bool key_press(Btk::KeyEvent &) override;
         bool resize_event(Btk::ResizeEvent &) override;
         bool close_event(Btk::CloseEvent &) override;
-        bool timer_event(Btk::TimerEvent &) override;
+        bool mouse_wheel(Btk::WheelEvent &) override;
     private:
         void on_ep_selected(Btk::ListItem *box);
-        void danmaku_start();
-        void danmaku_stop();
-        void danmaku_seek(double where);
+        void on_state_changed(Btk::MediaPlayer::State state);
 
         Bilibili &client;
 
@@ -58,19 +34,24 @@ class VideoPlayer : public Btk::Widget {
         Btk::MediaPlayer player;
         Btk::ListBox eps_box{this};
         Btk::Slider slider{this, Btk::Horizontal};
-        DanmakuView danmaku_view{this, &danmaku_nodes};
+        DanmakuView danmaku_view{this, &player};
 
         bool fullscreen = false;
         bool paused = false;
         bool played = false;
+        bool loading = false;
 
         Vec<Eps> eps;
-        Vec<Danmaku> danmakus;
-
-
-        // 弹幕部分
-        bool cur_danmakus_added = false;
-        Vec<Danmaku>::iterator danmakus_iter;
-        List<DanmakuNode> danmaku_nodes;
-        Btk::timerid_t timerid = 0;
+    friend class DanmakuView;
 };
+
+// inline DanmakuView::DanmakuView(VideoPlayer *parent) : Widget(parent), player(parent) { 
+//     auto pal = palette();
+//     // 背景透明
+//     pal.set_color(Btk::Palette::Window, Btk::Color::Transparent);
+//     auto ft = font();
+//     ft.set_size(32);
+//     set_font(ft);
+
+//     set_palette(pal);
+// }

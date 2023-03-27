@@ -32,4 +32,8 @@ class App final : public Btk::Widget {
         // Current bangumi
         Vec<Bangumi> bangumi_list;
 
+        // Current state
+        bool searching = false;
+        bool loading = false;
+
 };

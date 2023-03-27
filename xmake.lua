@@ -25,6 +25,7 @@ target("zood")
     set_languages("c++17")
 
     add_files("./src/*.cpp")
+    add_cxxflags("cl::/utf-8")
 
     add_includedirs("./external/btk/include")
     add_deps("btk", "btk_multimedia")

@@ -40,6 +40,9 @@ bool App::resize_event(Btk::ResizeEvent &event) {
     return true;
 }
 void App::on_search_required() {
+    if (searching) {
+        return;
+    }
     u8string_view content = search_input.text();
     if (content.empty()) {
         return;
@@ -48,29 +51,54 @@ void App::on_search_required() {
         // 是网址
         assert(false);
     }
-    auto list = client.search_bangumi(u8string(content));
-    if (!list.has_value()) {
-        // Bad
-        std::cout << "Bad search" << std::endl;
-        return;
-    }
-    result_box.clear();
-    bangumi_list = list.value();
 
-    for (auto &elem : bangumi_list) {
-        Btk::ListItem item;
-        item.text = elem.title;
-        item.font = font();
+    std::async([this, content]() {
+        searching = true;
+        auto list = client.search_bangumi(u8string(content));
+        if (!list.has_value()) {
+            // Bad
+            std::cout << "Bad search" << std::endl;
+            return;
+        }
 
-        result_box.add_item(item);
-    }
+        // Got, back to main thread
+        defer_call([this, list]() {
+            result_box.clear();
+            bangumi_list = list.value();
+
+            for (auto &elem : bangumi_list) {
+                Btk::ListItem item;
+                item.text = elem.title;
+                item.font = font();
+
+                result_box.add_item(item);
+            }
+            searching = false;
+        });
+    });
 }
 void App::on_item_selected(Btk::ListItem *item) {
+    if (loading) {
+        return;
+    }
     int idx = result_box.index_of(item);
 
     auto &bangumi = bangumi_list.at(idx);
 
-    auto *player = new VideoPlayer(client, bangumi.season_id);
-    player->set_attribute(Btk::WidgetAttrs::DeleteOnClose, true);
-    player->show();
+    // Try fetch
+    std::async([this, seasonid = bangumi.season_id]() {
+        loading = true;
+        auto eps_result = client.fetch_eps(seasonid);
+        if (!eps_result.has_value()) {
+            ::MessageBoxA(nullptr, "Failed to fetch eps", "Error", MB_OK);
+            loading = false;
+            return;
+        }
+        defer_call([this, eps_result]() {
+            auto *player = new VideoPlayer(client, eps_result.value());
+            player->set_attribute(Btk::WidgetAttrs::DeleteOnClose, true);
+            player->show();
+            loading = false;
+        });
+    });
 }

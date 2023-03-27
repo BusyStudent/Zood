@@ -4,36 +4,15 @@
 #include <iostream>
 
 
-bool DanmakuView::paint_event(Btk::PaintEvent &event) {
-    float w = width();
-    float h = height();
+VideoPlayer::VideoPlayer(Bilibili &client, const Vec<Eps> &ieps) : client(client) {
+    auto ft = font();
+    ft.set_bold(true);
+    ft.set_family("黑体");
+    set_font(ft);
 
-    auto &p = painter();
-    p.save();
-    p.scissor(rect());
-
-    p.set_text_align(Btk::AlignLeft + Btk::AlignTop);
-    for (auto &n : *nodes) {
-
-        // 画每一条弹幕
-        p.set_color(n.d->color);
-        p.draw_text(n.text, n.x, n.y);
-    }
-    p.restore();
-    return true;
-}
-
-VideoPlayer::VideoPlayer(Bilibili &client, int season_id) : client(client) {
     resize(800, 600);
     
-    // Try fetch
-    auto eps_result = client.fetch_eps(season_id);
-    if (!eps_result.has_value()) {
-        ::MessageBoxA(nullptr, "Failed to fetch eps", "Error", MB_OK);
-        return;
-    }
-
-    eps = eps_result.value();
+    eps = ieps;
 
     for (auto &ep : eps)  {
         std::cout << ep.title << " long_title:" << ep.long_title << std::endl;
@@ -53,22 +32,25 @@ VideoPlayer::VideoPlayer(Bilibili &client, int season_id) : client(client) {
         played = false;
     });
     player.signal_position_changed().connect([this](double pos) {
-        set_window_title(u8string::format("Zood 进度 %lf - %lf", pos, player.duration()));
+        set_window_title(u8string::format("Zood 进度 %lf - %lf 音量 %f", pos, player.duration(), device.volume()));
         slider.set_value(pos);
     });
     player.signal_duration_changed().connect([this](double dur) {
         slider.set_range(0, dur);
     });
+    player.signal_state_changed().connect(&VideoPlayer::on_state_changed, this);
 
     slider.signal_slider_moved().connect([this]() {
         if (!played) {
             return;
         }
         player.set_position(slider.value());
-        danmaku_seek(slider.value());
+        danmaku_view.set_position(slider.value());
     });
 
     eps_box.signal_item_clicked().connect(&VideoPlayer::on_ep_selected, this);
+
+    danmaku_view.set_opacity(0.8f);
 }
 VideoPlayer::~VideoPlayer() {
 
@@ -100,11 +82,11 @@ bool VideoPlayer::resize_event(Btk::ResizeEvent& e) {
 }
 bool VideoPlayer::close_event(Btk::CloseEvent &event) {
     player.stop();
-    return true;
+    return false;
 }
 bool VideoPlayer::key_press(Btk::KeyEvent &event) {
     if (event.key() == Btk::Key::Space && played) {
-        if (!paused) {
+        if (player.state() == Btk::MediaPlayer::Playing) {
             player.pause();
             paused = true;
         }
@@ -114,193 +96,140 @@ bool VideoPlayer::key_press(Btk::KeyEvent &event) {
         }
         return true;
     }
-    if (event.key() != Btk::Key::F11) {
-        return false;
-    }
-    fullscreen = !fullscreen;
-    eps_box.set_visible(!fullscreen);
-    slider.set_visible(!fullscreen);
+    else if (event.key() == Btk::Key::F11) {
+        fullscreen = !fullscreen;
+        eps_box.set_visible(!fullscreen);
+        slider.set_visible(!fullscreen);
 
-    set_fullscreen(fullscreen);
-    return true;
+        set_fullscreen(fullscreen);
+        return true;
+    }
+    else if (event.key() == Btk::Key::Right) {
+        // Add position
+        player.set_position(min(player.position() + 10.0, player.duration()));
+        danmaku_view.set_position(player.position());
+        return true;
+    }
+    else if (event.key() == Btk::Key::Left) {
+        // Add position
+        player.set_position(max(player.position() - 10.0, 0.0));
+        danmaku_view.set_position(player.position());
+        return true;
+    }
+    else if (event.key() == Btk::Key::Up) {
+        // Add volume
+        device.set_volume(min(device.volume() + 0.1f, 1.0f));
+        return true;
+    }
+    else if (event.key() == Btk::Key::Down) {
+        // Add volume
+        device.set_volume(max(device.volume() - 0.1f, 0.0f));
+        return true;
+    }
+    return false;
 }
 void VideoPlayer::on_ep_selected(Btk::ListItem* item) {
-    danmaku_stop();
+    danmaku_view.stop();
     player.stop();
     played = false;
     paused = false;
 
+    if (loading) {
+        // 加载中 忽略
+        return;
+    }
+
     auto idx = eps_box.index_of(item);
     
     auto ep = eps.at(idx);
-    auto url = client.fetch_video_url(ep.bvid, ep.cid);
-    auto dan = client.fetch_danmaku(ep.cid);
 
-    if (!url.has_value()) {
-        ::MessageBoxA(nullptr, "Failed to fetch url", "Error", MB_ICONERROR);
-        return;
-    }
-    if (!dan.has_value()) {
-        ::MessageBoxA(nullptr, "Failed to fetch Danmaku", "Error", MB_ICONERROR);
-    }
 
-    for (auto &d : dan.value()) {
-        std::cout << d.position << " " << d.text << std::endl;\
-    }
-    danmakus = dan.value();
-    danmaku_nodes.clear();
+    std::async([this, ep]() {
+        loading = true;
+        auto url = client.fetch_video_url(ep.bvid, ep.cid);
+        auto dan = client.fetch_danmaku(ep.cid);
 
-    // Try fetch danmaku
+        if (!url.has_value()) {
+            ::MessageBoxA(nullptr, "Failed to fetch url", "Error", MB_ICONERROR);
+            loading = false;
+            return;
+        }
+        if (!dan.has_value()) {
+            ::MessageBoxA(nullptr, "Failed to fetch Danmaku", "Error", MB_ICONERROR);
+            loading = false;
+            return;
+        }
 
-    defer_call([url, this]() {
-        player.set_url(url.value());
-        player.set_option("referer", "https://www.bilibili.com/");
-        player.set_option("user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537");
-        player.play();
-        danmaku_start();
+        // for (auto &d : dan.value()) {
+        //     std::cout << d.position << " " << d.text << std::endl;
+        // }
 
-        paused = false;
-        played = true;
+        // Try fetch danmaku
+
+        defer_call([url, dan ,this]() {
+            danmaku_view.load(dan.value());
+            player.set_url(url.value());
+            player.set_option("referer", "https://www.bilibili.com/");
+            player.set_option("user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537");
+            player.play();
+
+
+            danmaku_view.play();
+            paused = false;
+            played = true;
+            loading = false;
+        });
+
     });
 }
-void VideoPlayer::danmaku_start() {
-    // 30 FPS
-    timerid = add_timer(1000 / 60);
-
-    // 重置状态
-    danmakus_iter = danmakus.begin();
-    cur_danmakus_added = false;
-}
-void VideoPlayer::danmaku_stop() {
-    if (timerid) {
-        del_timer(timerid);
-    }
-    danmaku_nodes.clear();
-
-    repaint();
-}
-void VideoPlayer::danmaku_seek(double pos) {
-    danmaku_nodes.clear();
-
-    danmakus_iter = danmakus.begin();
-    while (danmakus_iter->position < pos && danmakus_iter != danmakus.end()) {
-        ++danmakus_iter;
-    }
-
-    repaint();
-}
-bool VideoPlayer::timer_event(Btk::TimerEvent &event) {
-    auto rng_at = [](int begin, int end) {
-        return begin + rand() % (end - begin);
-    };
-    if (event.timerid() != timerid) {
-        return false;
-    }
-    double pos = player.position();
-    double alive_time = 10; // 每一条保存10秒
-    if (danmakus_iter != danmakus.end()) {
-        // Add danmakus
-        while (danmakus_iter->position < pos && danmakus_iter != danmakus.end()) {
-            // 加
-            DanmakuNode node;
-
-            auto ft = font();
-            ft.set_size(danmakus_iter->size);
-
-            node.text.set_text(danmakus_iter->text);
-            node.text.set_font(ft);
-
-            node.d = &*danmakus_iter;
-
-            auto [w, h] = node.text.size();
-            node.w = w;
-            node.h = h;
-
-
-            // 普通弹幕
-            if (danmakus_iter->is_regular()) {
-                int hint = 0;
-                do {
-                    again : hint += 1;
-                    if (hint > 100) {
-                        // 扔了
-                        continue;
-                    }
-
-                    node.x = danmaku_view.x() + danmaku_view.width() + rng_at(0, 10);
-                    node.y = danmaku_view.y() + rng_at(0, danmaku_view.height() - node.h);
-
-                    // 检查有没有挡住
-                    for (auto &n : danmaku_nodes) {
-                        if (n.is_intersected(node)) {
-                            goto again;
-                        }
-                    }
-                    break;
-                }
-                while (true);
-            }
-            else if (danmakus_iter->is_top()) {
-                // 放在中间
-                node.x = danmaku_view.x() + danmaku_view.width() / 2 - node.w / 2;
-                node.y = danmaku_view.y();
-
-                for (auto &n : danmaku_nodes) {
-                    if (n.d->is_regular()) {
-                        continue;
-                    }
-                    if (n.is_intersected(node)) {
-                        node.y += node.h;
-                    }
-                }
-            }
-            else if (danmakus_iter->is_bottom()) {
-                // 放在中间 但是从下向上放
-                node.x = danmaku_view.x() + danmaku_view.width() / 2 - node.w / 2;
-                node.y = danmaku_view.y() + danmaku_view.height() - node.h;
-
-                for (auto &n : danmaku_nodes) {
-                    if (n.d->is_regular()) {
-                        continue;
-                    }
-                    if (n.is_intersected(node)) {
-                        node.y -= node.h;
-                    }
-                }
-            }
-            else {
-                // 不支持 扔了
-                continue;
-            }
-
-
-            danmaku_nodes.emplace_back(std::move(node));
-            ++danmakus_iter;
+void VideoPlayer::on_state_changed(Btk::MediaPlayer::State state) {
+    switch (state) {
+        case Btk::MediaPlayer::Playing : {
+            // 30 FPS
+            danmaku_view.pause(false);
+            break;
+        }
+        case Btk::MediaPlayer::Stopped : {
+            danmaku_view.stop();
+            break;
+        }
+        case Btk::MediaPlayer::Paused : {
+            danmaku_view.pause(true);
+            break;
         }
     }
-    // 移动danmaku
-    int w = view.width();
-    for (auto iter = danmaku_nodes.begin(); iter != danmaku_nodes.end(); ) {
+}
+// void VideoPlayer::danmaku_start() {
+//     // 重置状态
+//     danmakus_iter = danmakus.begin();
+//     cur_danmakus_added = false;
+// }
+// void VideoPlayer::danmaku_stop() {
+//     if (timerid) {
+//         del_timer(timerid);
+//         timerid = 0;
+//     }
+//     danmaku_regular_nodes.clear();
+//     danmaku_center_nodes.clear();
 
-        if (iter->d->is_regular()) {
-            // 移动普通弹幕
-            iter->x -= w / alive_time / 60;
+//     repaint();
+// }
+// void VideoPlayer::danmaku_seek(double pos) {
+//     danmaku_regular_nodes.clear();
+//     danmaku_center_nodes.clear();
 
-            if ((iter->x + iter->w) < 0) {
-                iter = danmaku_nodes.erase(iter);
-                continue;
-            }
-        }
-        else if (iter->d->is_bottom() || iter->d->is_top()) {
-            // 站在中间不动的
-            if (iter->d->position + alive_time < pos) {
-                // 超时 
-                iter = danmaku_nodes.erase(iter);
-                continue;
-            }
-        }
-        ++iter;
-    }
+//     danmakus_iter = danmakus.begin();
+//     while (danmakus_iter->position < pos && danmakus_iter != danmakus.end()) {
+//         ++danmakus_iter;
+//     }
+//     if (danmakus_iter != danmakus.end()) {
+//         std::cout << "Seek to pos: " << danmakus_iter->position << " text: " << danmakus_iter->text << std::endl;
+//     }
 
-    repaint();
+//     repaint();
+// }
+// bool VideoPlayer::timer_event(Btk::TimerEvent &event) {
+// }
+bool VideoPlayer::mouse_wheel(Btk::WheelEvent &e) {
+    return slider.handle(e);
 }
