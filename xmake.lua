@@ -14,7 +14,7 @@ add_requires("cpr", {configs = {ssl = true} })
 add_packages("cpr", {configs = {ssl = true} })
 
 -- Import UI ToolKit
-includes("./external/btk")
+includes("./Btk-ng")
 
 target("zood")
     if is_mode("release") then 
@@ -27,5 +27,5 @@ target("zood")
     add_files("./src/*.cpp")
     add_cxxflags("cl::/utf-8")
 
-    add_includedirs("./external/btk/include")
+    add_includedirs("./Btk-ng/include")
     add_deps("btk", "btk_multimedia")

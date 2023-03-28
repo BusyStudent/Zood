@@ -1,0 +1,3 @@
+[submodule "Btk-ng"]
+	path = Btk-ng
+	url = https://github.com/BusyStudent/Btk-ng.git

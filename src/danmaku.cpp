@@ -14,7 +14,6 @@ bool DanmakuView::timer_event(TimerEvent &event) {
     if (event.timerid() != timerid) {
         return false;
     }
-    danmaku_dpi_scale = window_dpi().x / 96.0f;
     double pos = player->position();
     double alive_time = 10; // 每一条保存10秒
 
@@ -206,6 +205,7 @@ bool DanmakuView::paint_event(Btk::PaintEvent &event) {
     return true;
 }
 void DanmakuView::play() {
+    danmaku_dpi_scale = window_dpi().x / 96.0f;
     danmakus_iter = danmakus.begin();
     if (timerid == 0) {
         timerid = add_timer(1000 / fps);
