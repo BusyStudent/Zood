@@ -254,3 +254,9 @@ void DanmakuView::set_position(double pos) {
 
     repaint();
 }
+float DanmakuView::danmaku_scale() const {
+    return danmakus_size;
+}
+void  DanmakuView::set_danmaku_scale(float s) {
+    danmakus_size = s;
+}

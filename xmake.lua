@@ -13,6 +13,9 @@ add_packages("nlohmann_json", "libxml2")
 add_requires("cpr", {configs = {ssl = true} })
 add_packages("cpr", {configs = {ssl = true} })
 
+-- Import WebView2
+add_includedirs("./webview2")
+
 -- Import UI ToolKit
 includes("./Btk-ng")
 
@@ -28,4 +31,4 @@ target("zood")
     add_cxxflags("cl::/utf-8")
 
     add_includedirs("./Btk-ng/include")
-    add_deps("btk", "btk_multimedia")
+    add_deps("btk", "btk_multimedia", "btk_webview")

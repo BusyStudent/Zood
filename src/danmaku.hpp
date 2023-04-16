@@ -86,6 +86,9 @@ class DanmakuView : public Widget {
         void pause(bool v);
         // 移动
         void set_position(double pos);
+
+        float danmaku_scale() const;
+        void  set_danmaku_scale(float s);
     protected:
         bool timer_event(TimerEvent &) override;
         bool paint_event(PaintEvent &) override;

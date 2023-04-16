@@ -4,7 +4,8 @@
             "name": "Win32",
             "includePath": [
                 "${default}",
-                "${workspaceFolder}/Btk-ng/include"
+                "${workspaceFolder}/Btk-ng/include",
+                "${workspaceFolder}/Btk-ng/src"
             ],
             "defines": [
                 "_DEBUG",

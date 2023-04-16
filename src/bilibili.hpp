@@ -58,6 +58,12 @@ class Bilibili {
          * @return Result<Vec<Bangumi>>
          */
         Result<Vec<Bangumi>> search_bangumi(const u8string &what);
+        /**
+         * @brief 抓取番剧的封面
+         * 
+         * @return Result<Vec<PixBuffer>> 
+         */
+        Result<Vec<PixBuffer>> fetch_covers(const Vec<Bangumi> &ban);
 
         /**
          * @brief 抓取剧集列表

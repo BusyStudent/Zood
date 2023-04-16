@@ -6,7 +6,7 @@
 #include <libxml/xmlreader.h>
 #include <libxml/xpath.h>
 
-cpr::Header DefaultHeader() {
+static cpr::Header DefaultHeader() {
     cpr::Header header;
     header.insert({"User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"});
     header.insert({"Referer", "https://www.bilibili.com/"});
@@ -70,6 +70,28 @@ Result<Vec<Bangumi>> Bilibili::search_bangumi(const u8string &name) {
     catch (...) {
         return std::nullopt;
     }
+}
+Result<Vec<PixBuffer>> Bilibili::fetch_covers(const Vec<Bangumi> &ban) {
+    Vec<PixBuffer> result;
+    for (auto &e : ban) {
+        try {
+            auto response = cpr::Get(cpr::Url(e.cover), DefaultHeader());
+            if (response.status_code != 200) {
+                // 失败了 压入一个空的
+                result.emplace_back();
+                std::cout << "Failed to Get : " << e.cover << " Status code " << response.status_code << std::endl; 
+                continue;
+            }
+            result.emplace_back(
+                PixBuffer::FromMem(response.text.data(), response.text.size())
+            );
+        }
+        catch (std::exception &err) {
+            result.emplace_back();
+            std::cout << "Failed to Get : " << e.cover << " What() " << err.what() << std::endl; 
+        }
+    }
+    return result;
 }
 Result<Vec<Eps>> Bilibili::fetch_eps(int season_id) {
     auto url = u8string::format("https://api.bilibili.com/pgc/view/web/season?season_id=%d", season_id);
