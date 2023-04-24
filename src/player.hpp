@@ -2,6 +2,7 @@
 #include <Btk/widgets/view.hpp>
 #include <Btk/widgets/slider.hpp>
 #include <Btk/widgets/button.hpp>
+#include <Btk/widgets/combobox.hpp>
 #include <Btk/widget.hpp>
 #include <Btk/layout.hpp>
 #include <list>
@@ -27,6 +28,7 @@ class VideoPlayer : public Btk::Widget {
         bool move_event(MoveEvent &) override;
         bool close_event(CloseEvent &) override;
         bool mouse_wheel(WheelEvent &) override;
+        bool mouse_release(MouseEvent &) override;
     private:
         void on_ep_selected(ListItem *box);
         void on_state_changed(MediaPlayer::State state);
@@ -62,6 +64,8 @@ class VideoPlayer : public Btk::Widget {
 class PlayerSettings : public Widget {
     public:
         PlayerSettings(VideoPlayer *player);
+
+        Size size_hint() const override;
     protected:
         bool close_event(CloseEvent &event) override;
 

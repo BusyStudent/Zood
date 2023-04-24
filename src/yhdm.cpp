@@ -1,4 +1,5 @@
 #include "video_source.hpp"
+#include "xmlhelper.hpp"
 #include <cpr/cpr.h>
 #include <Btk/pixels.hpp>
 #include <Btk/plugins/webview.hpp>
@@ -22,7 +23,7 @@ class YhdmVideo : public Video {
         }
         Result<u8string> media_url() override;
 
-        u8string url; //< 播放页面的URL
+        Vec<u8string> urls; //< 播放页面的URL 可能有多个 代表多个播放路线
         u8string title_str; //< 小标题
 
         YhdmProvider *master;
@@ -31,7 +32,11 @@ class YhdmVideoCollection : public VideoCollection {
     public:
         Result<Vec<Ptr<Video>>> videos() override;
         Result<PixBuffer> covers() override {
-            return std::nullopt;
+            auto response = cpr::Get(cpr::Url(cover_url), DefaultHeader());
+            if (response.status_code != 200) {
+                return std::nullopt;
+            }
+            return PixBuffer::FromMem(response.text.c_str(), response.text.size());
         }
         u8string          title() override {
             return title_str;
@@ -55,10 +60,47 @@ class YhdmProvider : public VideoProvider, public Object {
         }
         ~YhdmProvider() {}
 
+        bool wait_env_ready() {
+            bool status = false;
+            defer_call([&, this]() {
+                // auto webview = new WebView;
+                // webview->show();
+                // webinf.reset(webview->interface());
+                webinf.reset(WebView::AllocHeadless());
+                if (!webinf) {
+                    // Load failed
+                    status = false;
+                    ready_latch.count_down();
+                    return;
+                }
+
+                webinf->signal_ready().connect([&, this]() {
+                    // 环境完成
+                    webinf->signal_navigation_starting().connect([]() {
+                        std::cout << u8string_view("开始加载") << std::endl;
+                    });
+                        webinf->signal_navigation_compeleted().connect([]() {
+                        std::cout << u8string_view("加载结束") << std::endl;
+                    });
+                    webinf->interop()->add_request_watcher([this](u8string_view url) {
+                        if (resource_filter) {
+                            resource_filter(url);
+                        }
+                    });
+                    status = true;
+                    ready = true;
+                    ready_latch.count_down();
+                });
+            });
+            ready_latch.wait();
+            return status;
+        }
+
         u8string hostname = "www.yhdmp.net";
         Ptr<WebInterface> webinf;
         bool ready = false;
         Latch ready_latch{1};
+        std::function<void(u8string_view view)> resource_filter;
 
         Vec<Ptr<VideoCollection>> search_bangumi(u8string_view name) {
             Vec<Ptr<VideoCollection>> result;
@@ -149,111 +191,142 @@ Result<Vec<Ptr<Video>>> YhdmVideoCollection::videos() {
     if (response.status_code!= 200) {
         return std::nullopt;
     }
-    auto doc = htmlReadDoc(BAD_CAST response.text.c_str(), nullptr, "utf8", 
-        HTML_PARSE_RECOVER | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING | HTML_PARSE_NONET
-    );
+    // auto doc = htmlReadDoc(BAD_CAST response.text.c_str(), nullptr, "utf8", 
+    //     HTML_PARSE_RECOVER | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING | HTML_PARSE_NONET
+    // );
+    // if (!doc) {
+    //     return std::nullopt;
+    // }
+    auto doc = HtmlDocoument::Parse(response.text);
     if (!doc) {
         return std::nullopt;
     }
+
     // Parse it
-    auto xpath_ctx = xmlXPathNewContext(doc);
-    if (!xpath_ctx) {
-        xmlFreeDoc(doc);
-        return result;
-    }
-    auto xpath_exp = BAD_CAST "//div[@class='movurl']/ul/li/a";
-    auto xpath_result = xmlXPathEvalExpression(xpath_exp, xpath_ctx);
-    if (!xpath_result) {
-        xmlXPathFreeContext(xpath_ctx);
-        xmlFreeDoc(doc);
-        return result;
-    }
+    // auto xpath_ctx = xmlXPathNewContext(doc);
+    // if (!xpath_ctx) {
+    //     xmlFreeDoc(doc);
+    //     return result;
+    // }
+    auto xpath_exp = "//div[@class='movurl']/ul/li/a";
+    // auto xpath_result = xmlXPathEvalExpression(xpath_exp, xpath_ctx);
+    // if (!xpath_result) {
+    //     xmlXPathFreeContext(xpath_ctx);
+    //     xmlFreeDoc(doc);
+    //     return result;
+    // }
+    XPathContext xpath_ctxt(doc);
+    auto xpath_result = xpath_ctxt.eval(xpath_exp);
+
     auto nodes = xpath_result->nodesetval;
     for (int i = 0; i < nodes->nodeNr; i++) {
         auto node = nodes->nodeTab[i];
         if (node->type != XML_ELEMENT_NODE) {
             continue;
         }
-        result.push_back(std::make_unique<YhdmVideo>());
-        auto cur = (YhdmVideo*) result.back().get();
+        YhdmVideo* cur = nullptr;
+        u8string title_str = (const char*)xmlNodeGetContent(node);
+        // 找一找有没有同样名字的
+        for (auto &it : result) {
+            auto i = (YhdmVideo*) it.get();
+            if (i->title_str != title_str) {
+                continue;
+            }
+            else {
+                cur = i;
+                break;
+            }
+        }
+        if (cur == nullptr) {
+            result.push_back(std::make_unique<YhdmVideo>());
+            cur = (YhdmVideo*) result.back().get();
+            cur->title_str = title_str;
+            cur->master = master;
+        }
+
+
         // cur->master = this;
 
         // 遍历孩子
         auto href = xmlGetProp(node, BAD_CAST "href");
-        cur->title_str = (const char*)xmlNodeGetContent(node);
-        cur->url = u8string::format("https://%s%s", master->hostname.c_str(), href);
-        cur->master = master;
+        cur->urls.push_back(u8string::format("https://%s%s", master->hostname.c_str(), href));
 
         xmlFree(href);
 
-        std::cout << cur->title_str << " " << cur->url << std::endl;
+        // std::cout << cur->title_str << " " << cur->url << std::endl;
     }
-    xmlXPathFreeContext(xpath_ctx);
-    xmlXPathFreeObject(xpath_result);
-    xmlFreeDoc(doc);
+    // xmlXPathFreeContext(xpath_ctx);
+    // xmlXPathFreeObject(xpath_result);
+    // xmlFreeDoc(doc);
+
+    for (auto &it : result) {
+        auto i = (YhdmVideo*) it.get();
+        std::cout << i->title_str << ":" << std::endl;
+        for (auto &sub : i->urls) {
+            std::cout << "    Url:" << sub << std::endl;
+        }
+    }
 
     return result;
 
 }
 Result<u8string> YhdmVideo::media_url() {
     if (!master->ready) {
-        master->defer_call([this]() {
-            auto webview = new WebView;
-            webview->show();
-            master->webinf.reset(webview->interface());
-            master->webinf->signal_ready().connect([this]() {
-                // 环境完成
-                master->webinf->signal_navigation_starting().connect([]() {
-                    std::cout << u8string_view("开始加载") << std::endl;
-                });
-                    master->webinf->signal_navigation_compeleted().connect([]() {
-                    std::cout << u8string_view("加载结束") << std::endl;
-                });
-
-                master->ready = true;
-                master->ready_latch.count_down();
-            });
-        });
-        master->ready_latch.wait();
+        if (!master->wait_env_ready()) {
+            return std::nullopt;
+        }
     }
-    // 准备查询 在主线程
-    Latch latch {1};
+    // 准备查询 在主线程 逐URL
     Result<u8string> result;
-    pointer_t token;
-    master->defer_call([&, this]() {
-        auto timer = new Timer;
-        timer->set_repeat(false);
-        timer->set_interval(5000);
-        timer->start();
+    for (auto &url : urls) {
+        Latch latch {1};
+        Timer *timer = nullptr;
+        master->defer_call([&, this]() {
+            timer = new Timer;
+            timer->set_repeat(false);
+            timer->set_interval(5000);
+            timer->start();
 
-        master->webinf->navigate(url);
-        timer->signal_timeout().connect([&, this]() {
-            master->defer_call([&, this]() {
-                BTK_LOG("超时");
+            master->webinf->navigate(url);
+            std::cout << u8string_view("嗅探 ") << url << std::endl;
+
+
+            timer->signal_timeout().connect([&, this]() {
+                std::cout << u8string_view("超时 尝试下一个") << std::endl;
 
                 master->webinf->navigate("about:blank");
-                master->webinf->interop()->del_request_watcher(token);
+                master->resource_filter = nullptr; //< 重置filter
+                
                 latch.count_down();
-
-                delete timer;
             });
-        });
-        token = master->webinf->interop()->add_request_watcher([&, this](u8string_view url) {
-            if (url.contains(".m3u8") && !url.contains("getplay_url=")) {
-                // Got
-                result = url;
+            master->resource_filter = [&, this](u8string_view url) {
+                if (url.contains(".m3u8") && !url.contains("getplay_url=")) {
+                    // Got
+                    std::cout << u8string_view("拿到资源 ") << url << std::endl;
 
-                master->defer_call([&, this]() {
-                    master->webinf->navigate("about:blank");
-                    master->webinf->interop()->del_request_watcher(token);
-                    latch.count_down();
+                    timer->stop();
+                    result = url;
+                    master->resource_filter = nullptr; //< 重置filter
 
-                    delete timer;
-                });
-            }
+                    master->defer_call([&, this]() {
+
+                        master->webinf->navigate("about:blank");
+                        latch.count_down();
+
+                    });
+                }
+            };
         });
-    });
-    latch.wait();
+        latch.wait();
+        // 回收
+        master->defer_call([=]() {
+            delete timer;
+        });
+
+        if (result.has_value()) {
+            break;
+        }
+    }
     return result;
 }
 

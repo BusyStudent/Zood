@@ -50,3 +50,9 @@ GET https://api.bilibili.com/x/v1/dm/list.so?oid={{cid}}
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36
 Referer: https://bilibili.com
 Accept-Encoding: gzip
+
+### Search suggestions
+
+https://s.search.bilibili.com/main/suggest?term={{search}}&main_ver=v1
+
+@search=你好

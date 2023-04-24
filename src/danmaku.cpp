@@ -189,15 +189,19 @@ bool DanmakuView::paint_event(Btk::PaintEvent &event) {
 
 
     if (player->media_status() == Btk::MediaStatus::BufferingMedia) {
-        p.set_color(Btk::Color::White);
-        p.set_font(font());
+        p.set_font(danmakus_font);
         p.set_text_align(Btk::AlignCenter + Btk::AlignMiddle);
+        p.set_color(Color::Gray);
+        p.draw_text("缓冲中", x() + w / 2.0f + 1, y() + h / 2.0f + 1);
+        p.set_color(Btk::Color::White);
         p.draw_text("缓冲中", x() + w / 2.0f, y() + h / 2.0f);
     }
     if (player->media_status() == Btk::MediaStatus::LoadingMedia) {
-        p.set_color(Btk::Color::White);
-        p.set_font(font());
+        p.set_font(danmakus_font);
         p.set_text_align(Btk::AlignCenter + Btk::AlignMiddle);
+        p.set_color(Color::Gray);
+        p.draw_text("加载中", x() + w / 2.0f + 1, y() + h / 2.0f + 1);
+        p.set_color(Btk::Color::White);
         p.draw_text("加载中", x() + w / 2.0f, y() + h / 2.0f);
     }
 

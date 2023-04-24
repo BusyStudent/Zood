@@ -85,6 +85,11 @@ class Bilibili {
          * @return Result<Vec<Danmaku>> 
          */
         Result<Vec<Danmaku>> fetch_danmaku(int cid);
+        /**
+         * @brief 抓取搜索建议
+         * 
+         */
+        Result<Vec<u8string>> fetch_search_suggests(const u8string &str);
     private:
         cpr::Cookies cookie;
 };

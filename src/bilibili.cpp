@@ -229,3 +229,37 @@ Result<Vec<Danmaku>> Bilibili::fetch_danmaku(int cid) {
 
     return danmakus;
 }
+Result<Vec<u8string>> Bilibili::fetch_search_suggests(const u8string &what) {
+    auto url = u8string::format("https://s.search.bilibili.com/main/suggest?term=%s&main_ver=v1", cpr::util::urlEncode(what).c_str());
+
+    auto response = cpr::Get(cpr::Url(url), DefaultHeader(), cookie);
+    if (response.status_code != 200) {
+        return std::nullopt;
+    }
+
+    // Parse
+    try {
+        auto json = nlohmann::json::parse(response.text);
+        if (json["code"] != 0) {
+            return std::nullopt;
+        }
+        if (json["result"].empty()) {
+            return std::nullopt;
+        }
+
+        Vec<u8string> results;
+
+        for (auto &item : json["result"]["tag"]) {
+            results.emplace_back(item["value"]);
+        }
+        
+        return results;
+    }
+    catch (std::exception &err) {
+        std::cout << err.what() << std::endl;
+        return std::nullopt;
+    }
+    catch (...) {
+        return std::nullopt;
+    }
+}

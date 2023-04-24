@@ -1,7 +1,41 @@
 #include "player.hpp"
 
+#include <Btk/widgets/textedit.hpp>
+#include <Btk/widgets/dialog.hpp>
+#include <Btk/plugins/barrier.hpp>
 #include <Btk/event.hpp>
 #include <iostream>
+
+class ChooseBox : public Dialog {
+    public:
+        ChooseBox();
+
+        ComboBox *cbbox;
+    private:
+        HBoxLayout layout {this};
+};
+class InputBox : public Dialog {
+    public:
+        InputBox();
+
+        TextEdit *edit;
+    private:
+        HBoxLayout layout {this};
+};
+
+
+ChooseBox::ChooseBox() {
+    cbbox = new ComboBox();
+    layout.add_widget(new Label("选择一个项"));
+    layout.add_widget(cbbox);
+    layout.set_margin(20);
+}
+InputBox::InputBox() {
+    edit = new TextEdit();
+    layout.add_widget(new Label("请输入要替代的名字"));
+    layout.add_widget(edit);
+    layout.set_margin(20);
+}
 
 
 VideoPlayer::VideoPlayer(Bilibili &client, Bangumi b, const Vec<Eps> &ieps) : client(client), bangumi(b) {
@@ -10,7 +44,7 @@ VideoPlayer::VideoPlayer(Bilibili &client, Bangumi b, const Vec<Eps> &ieps) : cl
     ft.set_family("黑体");
     set_font(ft);
 
-    // resize(800, 600);
+    resize(800, 600);
     
     eps = ieps;
 
@@ -55,10 +89,26 @@ VideoPlayer::VideoPlayer(Bilibili &client, Bangumi b, const Vec<Eps> &ieps) : cl
             settings->raise();
             return;
         }
+        auto container = new PopupWidget;
+        container->set_attribute(WidgetAttrs::DeleteOnClose, true);
+
         settings = new PlayerSettings(this);
-        settings->set_attribute(WidgetAttrs::DeleteOnClose, true);
-        settings->show();
-        settings->set_window_title("播放器设置");
+
+        auto [w, h] = settings->size_hint();
+        auto [x, y] = setbtn.rect().position();
+        container->resize(w, h);
+        settings->resize(w, h);
+
+        container->move(x - w + setbtn.width(), y - h);
+        settings->move(x - w + setbtn.width(), y - h);
+
+        container->add_child(settings);
+
+        container->popup(this);
+
+        container->signal_destoryed().connect([this]() {
+            settings = nullptr;
+        });
     });
     setbtn.resize(setbtn.width() / 2, setbtn.height());
 
@@ -74,13 +124,57 @@ VideoPlayer::VideoPlayer(Bilibili &client, Bangumi b, const Vec<Eps> &ieps) : cl
             size_t wanted = 0;
             video_source = p->search_bangumi(bangumi.title);
             if (video_source.empty()) {
-                // 靠 没有视频源
-                fetched = true;
-                return;
+                // 靠 没有视频源 试试把 空格给切了
+                video_source = p->search_bangumi(bangumi.title.split(" ")[0]);
+                if (video_source.empty()) {
+                    // 没辙了
+                    u8string wanted;
+                    Latch latch(1);
+                    defer_call([&]() {
+                        InputBox box;
+                        box.set_window_title("没有找到结果");
+                        box.edit->signal_enter_pressed().connect([&]() {
+                            box.close();
+                        });
+                        box.run();
+                        wanted = box.edit->text();
+                        latch.count_down();
+                    });
+                    latch.wait();
+
+                    if (wanted.empty()) {
+                        return;
+                    }
+                    
+                    video_source = p->search_bangumi(wanted);
+                    if (video_source.empty()) {
+                        // 没辙了
+                        fetched = true;
+                        return;
+                    }
+                }
+
             }
+
+
+
             if (video_source.size() > 1) {
                 // 多余一个 要选择一下
                 // TODO
+                Latch latch(1);
+                defer_call([&]() {
+                    ChooseBox box;
+                    for (auto &item : video_source) {
+                        box.cbbox->add_item(item->title());
+                    }
+                    box.cbbox->signal_current_index_changed().connect([&](int idx) {
+                        wanted = idx;
+                        box.close();
+                    });
+                    box.run();
+                    latch.count_down();
+                });
+                latch.wait();
             }
             auto ret = video_source[wanted]->videos();
             if (ret.has_value()) {
@@ -88,6 +182,10 @@ VideoPlayer::VideoPlayer(Bilibili &client, Bangumi b, const Vec<Eps> &ieps) : cl
             }
             fetched = true;
         }).detach();
+    }
+    else {
+        // 没有附加视频源 也算拿到
+        fetched = true;
     }
 }
 VideoPlayer::~VideoPlayer() {
@@ -191,6 +289,10 @@ void VideoPlayer::on_ep_selected(Btk::ListItem* item) {
 
     if (loading) {
         // 加载中 忽略
+        return;
+    }
+    if (!fetched) {
+        ::MessageBoxW(nullptr, L"等待源", L"错误", MB_ICONERROR);
         return;
     }
 
@@ -305,6 +407,9 @@ void VideoPlayer::on_state_changed(Btk::MediaPlayer::State state) {
 bool VideoPlayer::mouse_wheel(Btk::WheelEvent &e) {
     return slider.handle(e);
 }
+bool VideoPlayer::mouse_release(MouseEvent &e) {
+    return true;
+}
 
 PlayerSettings::PlayerSettings(VideoPlayer *player) : player(player) {
     auto op_lay = new BoxLayout(LeftToRight);
@@ -373,7 +478,10 @@ PlayerSettings::PlayerSettings(VideoPlayer *player) : player(player) {
     audio_lay->add_widget(ia_slider_label);
 
 }
+Size PlayerSettings::size_hint() const {
+    return layout.size_hint();
+}
 bool PlayerSettings::close_event(CloseEvent &event) {
-    player->settings = nullptr;
+    // player->settings = nullptr;
     return true;
 }
